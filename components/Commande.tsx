@@ -17,6 +17,14 @@ import {
 
 type Etape = "panier" | "livraison" | "recap";
 
+const provenance = () => {
+  try {
+    return sessionStorage.getItem("latte-society-source") ?? "direct";
+  } catch {
+    return "direct";
+  }
+};
+
 export default function Commande({
   panier,
   setPanier,
@@ -93,7 +101,7 @@ export default function Commande({
       const r = await fetch("/api/commandes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...f, lignes: panier }),
+        body: JSON.stringify({ ...f, lignes: panier, source: provenance() }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.erreur);

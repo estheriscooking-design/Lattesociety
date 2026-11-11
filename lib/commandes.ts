@@ -52,6 +52,7 @@ export type Commande = {
     note: string;
     perso?: { type: string; prenoms: string; texte: string; logo: boolean; montant: number };
   } | null;
+  source?: string; // le lien par lequel le client est arrivé : instagram, tiktok, whatsapp ou direct
   remise?: number; // le latté offert par la carte de la Society, en francs
   soucis?: { message: string; le: string }[]; // ce que le client signale depuis sa page de suivi
 };
@@ -193,6 +194,7 @@ export function preparerCommande(corps: Record<string, unknown>): Commande | str
     historique: [],
     avis: null,
     groupe,
+    source: ["instagram", "tiktok", "whatsapp"].includes(corps.source as string) ? (corps.source as string) : "direct",
   };
 }
 

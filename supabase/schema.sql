@@ -13,7 +13,8 @@ alter table latte_commandes enable row level security; -- aucune règle : fermé
 create table if not exists latte_visites (
   id bigint generated always as identity primary key,
   le timestamptz not null default now(),
-  quoi text not null
+  quoi text not null,
+  source text not null default 'direct' -- instagram, tiktok, whatsapp ou direct
 );
 create index if not exists latte_visites_le on latte_visites (le desc);
 alter table latte_visites enable row level security;

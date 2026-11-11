@@ -56,14 +56,19 @@ export default function Boutique() {
 
   // Mesure des visites : une par session de navigation, et une quand le panier s'ouvre pour la première fois
   const compter = (quoi: "visite" | "panier") => {
+    let source = "direct";
     try {
+      // Le lien court (/ig, /tt, /wa) ajoute ?de=… : on le retient pour la visite et pour la commande
+      const de = new URLSearchParams(window.location.search).get("de");
+      if (de) sessionStorage.setItem("latte-society-source", de);
+      source = sessionStorage.getItem("latte-society-source") ?? "direct";
       if (sessionStorage.getItem(`latte-society-${quoi}`)) return;
       sessionStorage.setItem(`latte-society-${quoi}`, "1");
     } catch {}
     fetch("/api/visite", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ quoi }),
+      body: JSON.stringify({ quoi, source }),
       keepalive: true,
     }).catch(() => {});
   };

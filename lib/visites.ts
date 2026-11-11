@@ -6,7 +6,17 @@ import path from "node:path";
 
 export const QUOI = ["visite", "panier"] as const;
 export type Quoi = (typeof QUOI)[number];
-type Ligne = { le: string; quoi: Quoi };
+// D'où vient la visite : le lien court utilisé (/ig, /tt, /wa), sinon « direct »
+export const SOURCES = ["instagram", "tiktok", "whatsapp", "direct"] as const;
+export type Source = (typeof SOURCES)[number];
+export const NOMS_SOURCES: Record<Source, string> = {
+  instagram: "Instagram",
+  tiktok: "TikTok",
+  whatsapp: "WhatsApp",
+  direct: "Lien direct ou autre",
+};
+export const sourceDe = (v: unknown): Source => (SOURCES.includes(v as Source) ? (v as Source) : "direct");
+type Ligne = { le: string; quoi: Quoi; source?: Source };
 
 const FICHIER = path.join(process.cwd(), ".data", "visites.json");
 const supabase = () =>
@@ -24,15 +34,15 @@ async function lireFichier(): Promise<Ligne[]> {
 }
 let file: Promise<unknown> = Promise.resolve(); // une écriture à la fois
 
-export async function noter(quoi: Quoi) {
+export async function noter(quoi: Quoi, source: Source = "direct") {
   const s = supabase();
   if (s) {
-    await fetch(s.url, { method: "POST", headers: entetes(s.cle), body: JSON.stringify({ quoi }) });
+    await fetch(s.url, { method: "POST", headers: entetes(s.cle), body: JSON.stringify({ quoi, source }) });
     return;
   }
   file = file
     .then(async () => {
-      const toutes = [...(await lireFichier()), { le: new Date().toISOString(), quoi }];
+      const toutes = [...(await lireFichier()), { le: new Date().toISOString(), quoi, source }];
       await mkdir(path.dirname(FICHIER), { recursive: true });
       await writeFile(FICHIER, JSON.stringify(toutes));
     })
@@ -40,17 +50,17 @@ export async function noter(quoi: Quoi) {
   await file;
 }
 
-async function nombre(quoi: Quoi, debut: number, fin: number) {
+async function nombre(quoi: Quoi, debut: number, fin: number, source?: Source) {
   const s = supabase();
   if (!s) {
     return (await lireFichier()).filter((l) => {
       const t = new Date(l.le).getTime();
-      return l.quoi === quoi && t >= debut && t < fin;
+      return l.quoi === quoi && t >= debut && t < fin && (!source || (l.source ?? "direct") === source);
     }).length;
   }
   const a = encodeURIComponent(new Date(debut).toISOString());
   const b = encodeURIComponent(new Date(fin).toISOString());
-  const r = await fetch(`${s.url}?quoi=eq.${quoi}&le=gte.${a}&le=lt.${b}&select=id`, {
+  const r = await fetch(`${s.url}?quoi=eq.${quoi}${source ? `&source=eq.${source}` : ""}&le=gte.${a}&le=lt.${b}&select=id`, {
     method: "HEAD",
     headers: { ...entetes(s.cle), Prefer: "count=exact" },
     cache: "no-store",
@@ -61,10 +71,11 @@ async function nombre(quoi: Quoi, debut: number, fin: number) {
 export async function compter(jours: number) {
   const fin = Date.now();
   const debut = fin - jours * 86400000;
-  const [visites, paniers, avant] = await Promise.all([
+  const [visites, paniers, avant, ...parSource] = await Promise.all([
     nombre("visite", debut, fin),
     nombre("panier", debut, fin),
     nombre("visite", debut - jours * 86400000, debut),
+    ...SOURCES.map((s) => nombre("visite", debut, fin, s)),
   ]);
-  return { visites, paniers, avant };
+  return { visites, paniers, avant, sources: SOURCES.map((s, i) => ({ nom: NOMS_SOURCES[s], n: parSource[i] })) };
 }

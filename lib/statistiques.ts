@@ -157,6 +157,14 @@ export function statistiques(toutes: Commande[], jours: number) {
     sirops: classer(sirops),
     dessus: classer(dessus),
     quartiers: classer(quartiers),
+    sources: (["instagram", "tiktok", "whatsapp", "direct"] as const).map((s) => {
+      const siennes = periode.filter((c) => (c.source ?? "direct") === s);
+      return {
+        nom: { instagram: "Instagram", tiktok: "TikTok", whatsapp: "WhatsApp", direct: "Lien direct ou autre" }[s],
+        n: siennes.length,
+        ca: siennes.reduce((t, c) => t + c.sousTotal - (c.remise ?? 0), 0),
+      };
+    }),
     parts: {
       vegetal: tousGobelets ? Math.round((vegetal / tousGobelets) * 100) : 0,
       cadeaux: periode.length ? Math.round((cadeaux / periode.length) * 100) : 0,

@@ -8,7 +8,12 @@ import type { Statistiques } from "@/lib/statistiques";
 
 type Donnees = Statistiques & {
   alertes: string[];
-  visites: { visites: number; paniers: number; avant: number };
+  visites: {
+    visites: number;
+    paniers: number;
+    avant: number;
+    sources: { nom: string; n: number }[];
+  };
 };
 
 const ecart = (a: number, b: number) => {
@@ -188,6 +193,20 @@ export default function TableauDeBord() {
       </section>
 
       <div className="graphes">
+        <Barres
+          titre="D’où viennent les visites"
+          lignes={d.visites.sources}
+          vide="Aucune visite mesurée sur cette période."
+        />
+        <Barres
+          titre="D’où viennent les commandes"
+          lignes={d.sources.map((s) => ({
+            nom: s.nom,
+            n: s.n,
+            texte: `${s.n} cde, ${fcfa(s.ca)}`,
+          }))}
+          vide="Aucune commande sur cette période."
+        />
         <Barres
           titre="Ventes par jour"
           lignes={d.parJour

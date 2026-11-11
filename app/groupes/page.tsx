@@ -21,6 +21,14 @@ import {
 
 const CARTE = LATTES.filter((l) => !l.libre);
 
+const provenance = () => {
+  try {
+    return sessionStorage.getItem("latte-society-source") ?? "direct";
+  } catch {
+    return "direct";
+  }
+};
+
 export default function Groupes() {
   const [quantites, setQuantites] = useState<Record<string, number>>({});
   const [f, setF] = useState({
@@ -86,7 +94,7 @@ export default function Groupes() {
       const r = await fetch("/api/commandes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...f, groupe: true, cadeau: false, lignes, logo: logo?.donnees ?? "" }),
+        body: JSON.stringify({ ...f, groupe: true, cadeau: false, lignes, logo: logo?.donnees ?? "", source: provenance() }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.erreur);
