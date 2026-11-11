@@ -276,9 +276,17 @@ textarea {
   transition: color 0.7s ease;
 }
 
+/* Sur téléphone, la couronne tient dans la hauteur de son cadre : elle peut être coupée par les
+   bords de l'écran, jamais passer sur le texte ou les boutons au-dessus et en dessous. */
+.heros-gobelet,
+.sequence-gobelet {
+  container-type: size;
+  margin-block: 40px; /* la place de la couronne, qui dépasse le gobelet de 36 px en haut et en bas */
+}
+
 .couronne {
   position: absolute;
-  width: min(120%, 118vw, 96svh);
+  width: min(118vw, calc(100cqh + 72px));
   aspect-ratio: 1;
   max-width: none;
   overflow: visible;
@@ -1224,6 +1232,12 @@ textarea {
   .sequence-liste {
     position: relative;
     z-index: 1;
+  }
+
+  .heros-gobelet,
+  .sequence-gobelet {
+    container-type: normal;
+    margin-block: 0;
   }
 
   .couronne {
