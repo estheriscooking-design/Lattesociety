@@ -77,6 +77,16 @@ export default function Boutique() {
     if (ouvert) compter("panier");
   }, [ouvert]);
 
+  // Aller à un latté de la carte : la page défile jusqu'à sa place dans la séquence
+  const depart = useRef<{ x: number; y: number } | null>(null);
+  const allerAuLatte = (i: number) => {
+    const s = document.getElementById("carte");
+    if (!s) return;
+    const haut = s.getBoundingClientRect().top + window.scrollY;
+    const course = s.offsetHeight - window.innerHeight;
+    window.scrollTo({ top: haut + (course * (i + 0.25)) / LATTES.length, behavior: "smooth" });
+  };
+
   // La couronne tourne avec le défilement
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -207,7 +217,22 @@ export default function Boutique() {
           </div>
 
           <section className="sequence" id="carte" style={{ height: `${LATTES.length * 80}vh` }}>
-            <div className="sequence-fixe">
+            <div
+              className="sequence-fixe"
+              onTouchStart={(e) => {
+                depart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+              }}
+              onTouchEnd={(e) => {
+                // Un glissement vers la gauche ou la droite passe au latté suivant ou précédent
+                const d = depart.current;
+                depart.current = null;
+                if (!d) return;
+                const dx = e.changedTouches[0].clientX - d.x;
+                const dy = e.changedTouches[0].clientY - d.y;
+                if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+                allerAuLatte(Math.min(LATTES.length - 1, Math.max(0, latte + (dx < 0 ? 1 : -1))));
+              }}
+            >
               <div className="sequence-textes">
                 {LATTES.map((l, i) => (
                   <article key={l.id} className={i === latte ? "fiche fiche-active" : "fiche"} aria-hidden={i !== latte}>
@@ -231,17 +256,12 @@ export default function Boutique() {
                       style={{ background: l.teinte }}
                       aria-label={l.nom}
                       aria-current={i === latte}
-                      onClick={() => {
-                        const s = document.getElementById("carte");
-                        if (!s) return;
-                        const haut = s.getBoundingClientRect().top + window.scrollY;
-                        const course = s.offsetHeight - window.innerHeight;
-                        window.scrollTo({ top: haut + (course * (i + 0.25)) / LATTES.length, behavior: "smooth" });
-                      }}
+                      onClick={() => allerAuLatte(i)}
                     />
                   </li>
                 ))}
               </ol>
+              <p className="sequence-geste">Glissez vers la gauche pour voir le suivant.</p>
             </div>
           </section>
 
@@ -251,6 +271,12 @@ export default function Boutique() {
               <p>
                 Ajoutez vos lattés avec le bouton +. Tous sont servis en gobelet de {CONTENANCE}. Le lait, classique ou végétal, se choisit ensuite dans votre
                 commande.
+              </p>
+              <p>
+                Dix lattés ou plus, pour un bureau ou une fête ?{" "}
+                <Link className="lien" href="/groupes">
+                  Passez par la commande de groupe
+                </Link>
               </p>
             </div>
             <ul className="tuiles">
@@ -338,16 +364,23 @@ export default function Boutique() {
       </div>
 
       <footer className="pied">
-        <div className="pied-gobelet" data-gobelet data-latte="4" />
+        <Image
+          className="pied-sceau"
+          src="/logo/autocollant-creme.png"
+          alt="Le sceau The Latte Society, Esther is cooking"
+          width={1024}
+          height={1024}
+          sizes="(min-width: 860px) 360px, 62vw"
+        />
         <a className="bouton bouton-clair bouton-grand" href="#commander">
           Commander
         </a>
         <p className="pied-nom" aria-hidden="true">
           The Latte Society
         </p>
-        <p className="pied-ligne">
-          <Link href="/groupes">Commander pour un bureau ou une fête, à partir de dix lattés</Link>
-        </p>
+        <Link className="lien pied-lien" href="/groupes">
+          Commander pour un bureau ou une fête
+        </Link>
         <p className="pied-ligne">© The Latte Society, Cotonou. Esther is cooking.</p>
       </footer>
 

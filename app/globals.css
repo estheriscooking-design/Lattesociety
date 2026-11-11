@@ -338,7 +338,7 @@ textarea {
   position: sticky;
   top: 0;
   display: grid;
-  grid-template-rows: 50svh 1fr auto;
+  grid-template-rows: 50svh 1fr auto auto;
   height: 100svh;
   padding: 72px 16px 20px;
 }
@@ -404,6 +404,17 @@ textarea {
   place-items: center;
   width: 36px;
   height: 44px;
+}
+
+/* Le rappel du geste, sur téléphone seulement */
+.sequence-geste {
+  grid-row: 4;
+  justify-self: center;
+  font-size: 14px;
+}
+
+.sequence-fixe {
+  touch-action: pan-y; /* le glissement horizontal change de latté, le vertical fait défiler */
 }
 
 .pastille {
@@ -667,10 +678,16 @@ textarea {
   color: var(--creme);
 }
 
-.pied-gobelet {
-  width: 100%;
-  height: 46svh;
-  min-height: 300px;
+/* Le pied se ferme sur le sceau qu'Esther colle sur chaque gobelet */
+.pied-sceau {
+  width: min(62vw, 360px);
+  height: auto;
+  transform: rotate(-9deg);
+}
+
+.pied-lien {
+  color: var(--creme);
+  font-size: 17px;
 }
 
 .pied-nom {
@@ -1228,6 +1245,10 @@ textarea {
     flex-direction: column;
   }
 
+  .sequence-geste {
+    display: none;
+  }
+
   .sequence-textes,
   .sequence-liste {
     position: relative;
@@ -1366,4 +1387,15 @@ textarea {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+/* Quand le bandeau de commande est affiché en bas, il ne doit cacher ni les pastilles ni le pied */
+@media (max-width: 859px) {
+  body:has(.recap) .sequence-fixe {
+    padding-bottom: 108px;
+  }
+
+  body:has(.recap) .pied {
+    padding-bottom: 116px;
+  }
 }
