@@ -11,6 +11,7 @@ export default function Tournees({
   quartier,
   gobelets,
   groupe = false,
+  perso = "aucune",
   jour,
   heure,
   onChoisir,
@@ -18,6 +19,7 @@ export default function Tournees({
   quartier: string;
   gobelets: number;
   groupe?: boolean;
+  perso?: string;
   jour: string;
   heure: string;
   onChoisir: (jour: string, heure: string) => void;
@@ -30,7 +32,7 @@ export default function Tournees({
     fetch("/api/creneaux", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ quartier, groupe }),
+      body: JSON.stringify({ quartier, groupe, perso }),
     })
       .then((r) => (r.ok ? r.json() : null))
       .then((j: { zone: string; jours: Jour[] } | null) => {
@@ -51,7 +53,7 @@ export default function Tournees({
       fini = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- on ne recharge que si le quartier ou la taille de la commande change
-  }, [quartier, gobelets, groupe]);
+  }, [quartier, gobelets, groupe, perso]);
 
   if (!quartier) return <p>Choisissez d’abord le quartier : les heures de livraison en dépendent.</p>;
   if (!etat || etat.quartier !== quartier) return <p>Un instant, on regarde les tournées.</p>;

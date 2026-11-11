@@ -8,6 +8,7 @@ import {
   LAITS,
   LATTES,
   MINI_GROUPE,
+  PERSONNALISATIONS,
   MAX_DESSUS,
   MAX_SIROPS,
   QUARTIERS,
@@ -44,7 +45,13 @@ export type Commande = {
   paiement: { mode: "fedapay" | "demo"; transaction: string | null };
   historique?: { statut: Statut; le: string }[]; // l'heure de chaque étape, pour mesurer les délais
   avis?: { note: number; commentaire: string; le: string } | null; // laissé par le client après la livraison
-  groupe?: { societe: string; facture: boolean; note: string } | null; // commande d'un bureau ou d'un événement
+  // Commande d'un bureau ou d'un événement, avec la personnalisation des gobelets
+  groupe?: {
+    societe: string;
+    facture: boolean;
+    note: string;
+    perso?: { type: string; prenoms: string; texte: string; logo: boolean; montant: number };
+  } | null;
   remise?: number; // le latté offert par la carte de la Society, en francs
   soucis?: { message: string; le: string }[]; // ce que le client signale depuis sa page de suivi
 };
@@ -124,7 +131,18 @@ export function preparerCommande(corps: Record<string, unknown>): Commande | str
       return "Le latté à composer ne se commande pas en groupe.";
     if (lignes.reduce((s, l) => s + l.quantite, 0) < MINI_GROUPE)
       return `Une commande de groupe commence à ${MINI_GROUPE} lattés.`;
-    groupe = { societe: texte(corps.societe, 120), facture: corps.facture === true, note: texte(corps.note, 500) };
+    const p = PERSONNALISATIONS.find((x) => x.id === corps.perso) ?? PERSONNALISATIONS[0];
+    const nombre = lignes.reduce((s, l) => s + l.quantite, 0);
+    const perso = {
+      type: p.id,
+      prenoms: p.id === "prenoms" ? texte(corps.prenoms, 4000) : "",
+      texte: p.id === "autocollant" ? texte(corps.texteAutocollant, 120) : "",
+      logo: p.id === "autocollant" && typeof corps.logo === "string" && corps.logo.length > 0,
+      montant: p.prix * nombre,
+    };
+    if (p.id === "prenoms" && !perso.prenoms) return "Écrivez les prénoms, un par ligne.";
+    if (p.id === "autocollant" && !perso.texte && !perso.logo) return "Ajoutez votre logo ou le texte de l’autocollant.";
+    groupe = { societe: texte(corps.societe, 120), facture: corps.facture === true, note: texte(corps.note, 500), perso };
     if (!groupe.societe) return "Indiquez le nom de l’entreprise ou de l’événement.";
   }
 
@@ -149,11 +167,12 @@ export function preparerCommande(corps: Record<string, unknown>): Commande | str
   const jour = texte(corps.jour, 10);
   const heure = texte(corps.heure, 5);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(jour) || !/^\d{2}:\d{2}$/.test(heure)) return "Choisissez une tournée de livraison.";
-  const refus = erreurTournee(jour, heure, quartier.frais, enGroupe);
+  const delai = PERSONNALISATIONS.find((x) => x.id === groupe?.perso?.type)?.delai ?? 1;
+  const refus = erreurTournee(jour, heure, quartier.frais, enGroupe, delai);
   if (refus) return refus;
   const quand: Commande["quand"] = { jour, heure };
 
-  const sousTotal = lignes.reduce((s, l) => s + prixLigne(l), 0);
+  const sousTotal = lignes.reduce((s, l) => s + prixLigne(l), 0) + (groupe?.perso?.montant ?? 0);
   const id = randomUUID();
   return {
     id,
@@ -195,13 +214,13 @@ const gobeletsPris = (toutes: Commande[], jour: string, heure: string, frais: nu
     .reduce((s, c) => s + gobelets(c), 0);
 
 // Les tournées ouvertes pour une zone sur les sept prochains jours de livraison
-export async function tourneesOuvertes(frais: number, groupe = false) {
+export async function tourneesOuvertes(frais: number, groupe = false, delai = 1) {
   const toutes = groupe ? [] : await lister(2000);
-  return joursOuverts()
+  return joursOuverts(7, groupe ? delai : 0)
     .map((jour) => ({
       jour,
       tournees: tourneesDu(jour, frais)
-        .filter((heure) => !erreurTournee(jour, heure, frais, groupe))
+        .filter((heure) => !erreurTournee(jour, heure, frais, groupe, delai))
         .map((heure) => ({
           heure,
           places: groupe ? null : Math.max(0, CAPACITE - gobeletsPris(toutes, jour, heure, frais)),

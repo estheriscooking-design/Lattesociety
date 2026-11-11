@@ -28,6 +28,10 @@ export function texteAlerte(c: Commande, origine = process.env.SITE_URL ?? "") {
     ...(c.cadeau?.mot ? [`Mot : « ${c.cadeau.mot} »`] : []),
     `${c.quartier}. ${c.lieu}`,
     ...(c.groupe?.facture ? ["Facture demandée."] : []),
+    ...(c.groupe?.perso?.type === "prenoms" ? [`Prénoms sur les gobelets : ${c.groupe.perso.prenoms.split(/\n+/).join(", ")}`] : []),
+    ...(c.groupe?.perso?.type === "autocollant"
+      ? [`Autocollant à imprimer${c.groupe.perso.texte ? ` : « ${c.groupe.perso.texte} »` : ""}${c.groupe.perso.logo ? " (logo joint, à voir sur l’écran des commandes)" : ""}.`]
+      : []),
     ...(c.groupe?.note ? [`Précisions : ${c.groupe.note}`] : []),
     "",
     `Payé ${fcfa(c.total)}, dont ${fcfa(c.frais)} pour le livreur.`,

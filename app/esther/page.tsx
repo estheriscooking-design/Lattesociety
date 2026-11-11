@@ -17,7 +17,12 @@ type Commande = {
   nom: string;
   telephone: string;
   cadeau: { nom: string; telephone: string; mot: string } | null;
-  groupe?: { societe: string; facture: boolean; note: string } | null;
+  groupe?: {
+    societe: string;
+    facture: boolean;
+    note: string;
+    perso?: { type: string; prenoms: string; texte: string; logo: boolean; montant: number };
+  } | null;
   quartier: string;
   lieu: string;
   quand: "vite" | { jour: string; heure: string };
@@ -297,6 +302,30 @@ export default function Esther() {
                       Commande de groupe : <strong>{c.groupe.societe}</strong>.
                       {c.groupe.facture ? " Facture demandée." : ""}
                       {c.groupe.note ? ` ${c.groupe.note}` : ""}
+                    </p>
+                  )}
+                  {c.groupe?.perso?.type === "prenoms" && (
+                    <p>
+                      Un prénom par gobelet :{" "}
+                      {c.groupe.perso.prenoms.split(/\n+/).join(", ")}
+                    </p>
+                  )}
+                  {c.groupe?.perso?.type === "autocollant" && (
+                    <p>
+                      Autocollant à faire imprimer
+                      {c.groupe.perso.texte
+                        ? ` : « ${c.groupe.perso.texte} »`
+                        : ""}
+                      .{" "}
+                      {c.groupe.perso.logo && (
+                        <a
+                          href={`/api/esther/logo/${c.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Voir le logo
+                        </a>
+                      )}
                     </p>
                   )}
                   <p>

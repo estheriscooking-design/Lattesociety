@@ -17,3 +17,7 @@ create table if not exists latte_visites (
 );
 create index if not exists latte_visites_le on latte_visites (le desc);
 alter table latte_visites enable row level security;
+
+-- Logos envoyés pour les autocollants des commandes de groupe : compartiment privé de fichiers.
+insert into storage.buckets (id, name, public) values ('latte-logos', 'latte-logos', false)
+on conflict (id) do nothing;

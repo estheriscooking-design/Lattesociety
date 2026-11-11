@@ -317,6 +317,27 @@ export const CAPACITE = 12;
 // Commandes de groupe : au moins dix gobelets, passées la veille au plus tard
 export const MINI_GROUPE = 10;
 
+// Personnalisation des gobelets pour les commandes de groupe.
+// SUPPLÉMENT ET DÉLAI DE L'AUTOCOLLANT SONT PROVISOIRES (11/2026) : à fixer après le devis de l'imprimeur.
+export const PERSONNALISATIONS = [
+  { id: "aucune", nom: "Sans personnalisation", texte: "Le sceau d’Esther seul.", prix: 0, delai: 1 },
+  { id: "prenoms", nom: "Un prénom par gobelet", texte: "Esther écrit le prénom de chaque invité.", prix: 0, delai: 1 },
+  {
+    id: "autocollant",
+    nom: "Un autocollant à votre nom",
+    texte: "Votre logo ou le nom de la fête, collé à côté du sceau d’Esther.",
+    prix: 200, // par gobelet
+    delai: 4, // jours entre la commande et la livraison, le temps d'imprimer
+  },
+] as const;
+export type Personnalisation = (typeof PERSONNALISATIONS)[number]["id"];
+
+const dansJours = (n: number) => {
+  const d = new Date(`${maintenantCotonou().date}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
 export function tourneesDu(jour: string, frais: number): string[] {
   if (!jour) return [];
   const j = new Date(`${jour}T12:00`).getDay();
@@ -325,9 +346,9 @@ export function tourneesDu(jour: string, frais: number): string[] {
 }
 
 // Les sept prochains jours où Esther livre, aujourd'hui compris
-export function joursOuverts(n = 7): string[] {
+export function joursOuverts(n = 7, delai = 0): string[] {
   const jours: string[] = [];
-  const d = new Date(`${maintenantCotonou().date}T12:00:00Z`);
+  const d = new Date(`${dansJours(delai)}T12:00:00Z`);
   while (jours.length < n) {
     if (d.getUTCDay() !== 0) jours.push(d.toISOString().slice(0, 10));
     d.setUTCDate(d.getUTCDate() + 1);
@@ -336,12 +357,16 @@ export function joursOuverts(n = 7): string[] {
 }
 
 // La tournée existe-t-elle, et est-il encore temps de s'y inscrire ?
-export function erreurTournee(jour: string, heure: string, frais: number, groupe = false): string | null {
+export function erreurTournee(jour: string, heure: string, frais: number, groupe = false, delai = 1): string | null {
   if (!tourneesDu(jour, frais).includes(heure)) return "Choisissez une tournée de livraison.";
   const m = maintenantCotonou();
   if (jour < m.date) return "Ce jour est déjà passé.";
   if (groupe)
-    return jour === m.date ? "Une commande de groupe se passe la veille au plus tard." : null;
+    return jour >= dansJours(delai)
+      ? null
+      : delai > 1
+        ? `Avec un autocollant à imprimer, la livraison se fait au plus tôt dans ${delai} jours.`
+        : "Une commande de groupe se passe la veille au plus tard.";
   if (jour === m.date && enMinutes(heure) - (AVANCE[frais] ?? 60) < m.minutes)
     return "Cette tournée est déjà en préparation. Choisissez la suivante.";
   return null;

@@ -9,6 +9,7 @@ import {
   LAITS,
   LATTES,
   MINI_GROUPE,
+  PERSONNALISATIONS,
   QUARTIERS,
   cleLigne,
   fcfa,
@@ -32,10 +33,28 @@ export default function Groupes() {
     heure: "",
     note: "",
     facture: false,
+    perso: "aucune",
+    prenoms: "",
+    texteAutocollant: "",
   });
+  const [logo, setLogo] = useState<{ nom: string; donnees: string } | null>(null);
+  const [refusLogo, setRefusLogo] = useState("");
+  const lireLogo = (fichier: File | undefined) => {
+    setRefusLogo("");
+    setLogo(null);
+    if (!fichier) return;
+    if (!["image/png", "image/jpeg", "application/pdf"].includes(fichier.type))
+      return setRefusLogo("Envoyez une image PNG ou JPEG, ou un PDF.");
+    if (fichier.size > 2_000_000) return setRefusLogo("Ce fichier dépasse 2 Mo. Envoyez une version plus légère.");
+    const lecteur = new FileReader();
+    lecteur.onload = () => setLogo({ nom: fichier.name, donnees: String(lecteur.result) });
+    lecteur.readAsDataURL(fichier);
+  };
   const [envoi, setEnvoi] = useState(false);
   const [refus, setRefus] = useState("");
-  const champ = (k: "societe" | "nom" | "telephone" | "quartier" | "lieu" | "note") => ({
+  const champ = (
+    k: "societe" | "nom" | "telephone" | "quartier" | "lieu" | "note" | "prenoms" | "texteAutocollant",
+  ) => ({
     value: f[k],
     onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
       setF((x) => ({ ...x, [k]: e.target.value })),
@@ -52,6 +71,8 @@ export default function Groupes() {
   const gobelets = lignes.reduce((s, l) => s + l.quantite, 0);
   const total = lignes.reduce((s, l) => s + prixLigne(l), 0);
   const frais = QUARTIERS.find((q) => q.nom === f.quartier)?.frais ?? 0;
+  const perso = PERSONNALISATIONS.find((p) => p.id === f.perso) ?? PERSONNALISATIONS[0];
+  const supplement = perso.prix * gobelets;
   const manque = MINI_GROUPE - gobelets;
   const changer = (cle: string, d: number) =>
     setQuantites((q) => ({ ...q, [cle]: Math.min(100, Math.max(0, (q[cle] ?? 0) + d)) }));
@@ -65,7 +86,7 @@ export default function Groupes() {
       const r = await fetch("/api/commandes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...f, groupe: true, cadeau: false, lignes }),
+        body: JSON.stringify({ ...f, groupe: true, cadeau: false, lignes, logo: logo?.donnees ?? "" }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.erreur);
@@ -142,6 +163,59 @@ export default function Groupes() {
         </section>
 
         <section className="suivi-detail">
+          <h2>Les gobelets</h2>
+          <fieldset className="choix">
+            <legend>Personnaliser les gobelets</legend>
+            <div className="choix-liste">
+              {PERSONNALISATIONS.map((p) => (
+                <label key={p.id} className={f.perso === p.id ? "option option-cochee" : "option"}>
+                  <input
+                    type="radio"
+                    name="perso"
+                    checked={f.perso === p.id}
+                    onChange={() => setF((x) => ({ ...x, perso: p.id, jour: "", heure: "" }))}
+                  />
+                  {p.nom}
+                  {p.prix ? `, + ${fcfa(p.prix)} par gobelet` : ""}
+                </label>
+              ))}
+            </div>
+            <p>
+              {perso.texte}
+              {perso.delai > 1 ? ` Il faut ${perso.delai} jours pour l’imprimer.` : ""}
+            </p>
+          </fieldset>
+          {f.perso === "prenoms" && (
+            <label className="champ">
+              Les prénoms, un par ligne
+              <textarea required rows={6} maxLength={4000} placeholder={"Mireille\nKoffi\nAïcha"} {...champ("prenoms")} />
+            </label>
+          )}
+          {f.perso === "autocollant" && (
+            <>
+              <label className="champ">
+                Votre logo (PNG, JPEG ou PDF, 2 Mo au plus)
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,application/pdf"
+                  onChange={(e) => lireLogo(e.target.files?.[0])}
+                />
+              </label>
+              {logo && <p>Fichier prêt : {logo.nom}</p>}
+              {refusLogo && (
+                <p className="erreur" role="alert">
+                  {refusLogo}
+                </p>
+              )}
+              <label className="champ">
+                Ou le texte à imprimer
+                <input maxLength={120} placeholder="Les 30 ans de Mireille" {...champ("texteAutocollant")} />
+              </label>
+            </>
+          )}
+        </section>
+
+        <section className="suivi-detail">
           <h2>Pour qui</h2>
           <label className="champ">
             L’entreprise ou l’événement
@@ -201,6 +275,7 @@ export default function Groupes() {
             quartier={f.quartier}
             gobelets={gobelets}
             groupe
+            perso={f.perso}
             jour={f.jour}
             heure={f.heure}
             onChoisir={(jour, heure) => setF((x) => ({ ...x, jour, heure }))}
@@ -219,13 +294,19 @@ export default function Groupes() {
             </span>
             <strong>{fcfa(total)}</strong>
           </p>
+          {supplement > 0 && (
+            <p className="total">
+              <span>Autocollants à votre nom</span>
+              <strong>{fcfa(supplement)}</strong>
+            </p>
+          )}
           <p className="total">
             <span>Livraison</span>
             <strong>{fcfa(frais)}</strong>
           </p>
           <p className="total total-fort">
             <span>Total</span>
-            <strong>{fcfa(total + frais)}</strong>
+            <strong>{fcfa(total + supplement + frais)}</strong>
           </p>
           {f.jour && f.heure && (
             <p>
@@ -233,7 +314,7 @@ export default function Groupes() {
             </p>
           )}
           <button className="bouton bouton-grand bouton-large" disabled={envoi || manque > 0}>
-            {envoi ? "Un instant…" : manque > 0 ? `Encore ${manque} lattés` : `Payer ${fcfa(total + frais)}`}
+            {envoi ? "Un instant…" : manque > 0 ? `Encore ${manque} lattés` : `Payer ${fcfa(total + supplement + frais)}`}
           </button>
           {refus && (
             <p className="erreur" role="alert">
