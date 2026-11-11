@@ -73,7 +73,7 @@ export function statistiques(toutes: Commande[], jours: number) {
     semaine[prevu.getUTCDay()].ca += (c.sousTotal - (c.remise ?? 0));
     const h = `${String(prevu.getUTCHours()).padStart(2, "0")} h`;
     heures.set(h, { n: (heures.get(h)?.n ?? 0) + 1 });
-    if (c.quand === "vite") immediates++;
+    if (c.quand === "vite" || c.quand.jour === jourDe(c.creeLe)) immediates++; // livrée le jour même de la commande
     if (c.cadeau) cadeaux++;
 
     for (const l of c.lignes) {
@@ -141,6 +141,10 @@ export function statistiques(toutes: Commande[], jours: number) {
     jours,
     resume: resume(periode),
     precedent: resume(precedente),
+    groupes: {
+      n: periode.filter((c) => c.groupe).length,
+      ca: periode.filter((c) => c.groupe).reduce((s, c) => s + c.sousTotal, 0),
+    },
     tunnel: {
       creees: creees.length,
       payees: creees.filter((c) => c.statut !== "attente").length,

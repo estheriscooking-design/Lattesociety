@@ -1,19 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Tournees from "@/components/Tournees";
 import {
-  DELAI,
-  HORAIRES_TEXTE,
   LAITS,
   LATTES,
   QUARTIERS,
   cleLigne,
   detailLigne,
-  erreurCreneau,
   fcfa,
-  horairesDu,
-  maintenantCotonou,
-  ouvertMaintenant,
+  heureEnClair,
+  jourEnClair,
   prixLigne,
   type Ligne,
 } from "@/lib/carte";
@@ -31,8 +28,6 @@ export default function Commande({
 }) {
   const boite = useRef<HTMLDialogElement>(null);
   const [etape, setEtape] = useState<Etape>("panier");
-  const [ouvert] = useState(ouvertMaintenant); // Esther peut-elle livrer tout de suite ?
-  const [aujourdhui] = useState(() => maintenantCotonou().date);
   const [f, setF] = useState(() => {
     // Les coordonnées de la dernière commande reviennent toutes seules
     let garde = { nom: "", telephone: "", quartier: "", lieu: "" };
@@ -53,7 +48,7 @@ export default function Commande({
         ? garde.quartier
         : "",
       lieu: garde.lieu,
-      quand: ouvert ? "vite" : "plus-tard",
+      quand: "plus-tard",
       jour: "",
       heure: "",
     };
@@ -134,7 +129,9 @@ export default function Commande({
   const frais = QUARTIERS.find((q) => q.nom === f.quartier)?.frais ?? 0;
   const remise = carte?.remise ?? 0;
   const erreur =
-    f.quand === "plus-tard" ? erreurCreneau(f.jour, f.heure) : null;
+    f.quartier && !(f.jour && f.heure)
+      ? "Choisissez une heure de livraison."
+      : null;
   const changer = (cle: string, d: number) =>
     setPanier((p) =>
       p.flatMap((l) =>
@@ -359,69 +356,13 @@ export default function Commande({
               />
             </label>
 
-            <fieldset className="choix">
-              <legend>Pour quand ?</legend>
-              <div className="choix-liste">
-                {ouvert && (
-                  <label
-                    className={
-                      f.quand === "vite" ? "option option-cochee" : "option"
-                    }
-                  >
-                    <input
-                      type="radio"
-                      name="quand"
-                      checked={f.quand === "vite"}
-                      onChange={() => setF((x) => ({ ...x, quand: "vite" }))}
-                    />
-                    Dès que possible, environ {DELAI} minutes
-                  </label>
-                )}
-                <label
-                  className={
-                    f.quand === "plus-tard" ? "option option-cochee" : "option"
-                  }
-                >
-                  <input
-                    type="radio"
-                    name="quand"
-                    checked={f.quand === "plus-tard"}
-                    onChange={() => setF((x) => ({ ...x, quand: "plus-tard" }))}
-                  />
-                  Un jour et une heure précis
-                </label>
-              </div>
-              {!ouvert && (
-                <p>
-                  Esther prépare {HORAIRES_TEXTE}. Elle est fermée en ce moment
-                  : réservez votre créneau.
-                </p>
-              )}
-            </fieldset>
-            {f.quand === "plus-tard" && (
-              <div className="duo">
-                <label className="champ">
-                  Le jour
-                  <input
-                    required
-                    type="date"
-                    min={aujourdhui}
-                    {...champ("jour")}
-                  />
-                </label>
-                <label className="champ">
-                  L’heure
-                  <input
-                    required
-                    type="time"
-                    min={horairesDu(f.jour)?.ouverture}
-                    max={horairesDu(f.jour)?.fermeture}
-                    step={900}
-                    {...champ("heure")}
-                  />
-                </label>
-              </div>
-            )}
+            <Tournees
+              quartier={f.quartier}
+              gobelets={panier.reduce((n, l) => n + l.quantite, 0)}
+              jour={f.jour}
+              heure={f.heure}
+              onChoisir={(jour, heure) => setF((x) => ({ ...x, jour, heure }))}
+            />
             {erreur && (
               <p className="erreur" role="alert">
                 {erreur}
@@ -463,11 +404,8 @@ export default function Commande({
               {f.cadeau
                 ? `Pour ${f.pourNom}, de la part de ${f.nom}.`
                 : `Pour ${f.nom}.`}{" "}
-              Livraison à {f.quartier},{" "}
-              {f.quand === "vite"
-                ? "dès que possible"
-                : `le ${new Date(`${f.jour}T12:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })} à ${f.heure}`}
-              .
+              Livraison à {f.quartier}, {jourEnClair(f.jour).toLowerCase()},
+              vers {heureEnClair(f.heure)}.
             </p>
             <p>{f.lieu}</p>
             {f.cadeau && f.mot && <p className="mot">« {f.mot} »</p>}

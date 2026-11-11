@@ -1328,3 +1328,28 @@ textarea {
 .tampon-pose {
   background: var(--orange);
 }
+
+/* Commande de groupe : deux compteurs par latté (lait classique, lait végétal) */
+.groupe {
+  display: grid;
+  gap: 40px;
+  width: 100%;
+}
+.groupe .ligne {
+  flex-wrap: wrap;
+}
+.groupe .ligne-texte {
+  flex: 1;
+  min-width: 0;
+}
+.groupe-laits {
+  display: grid;
+  gap: 8px;
+  flex-basis: 100%;
+}
+.groupe-lait {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}

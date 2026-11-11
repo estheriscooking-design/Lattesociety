@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import Image from "next/image";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import Gobelet from "./Gobelet";
@@ -140,6 +141,7 @@ export default function Boutique() {
             <nav className="barre-liens" aria-label="Sections">
               <a href="#carte">La carte</a>
               <a href="#offrir">Offrir</a>
+              <Link href="/groupes">Bureaux et fêtes</Link>
               <a href="#livraison">Livraison</a>
             </nav>
             <a className="bouton" href="#commander">
@@ -337,6 +339,9 @@ export default function Boutique() {
         </a>
         <p className="pied-nom" aria-hidden="true">
           The Latte Society
+        </p>
+        <p className="pied-ligne">
+          <Link href="/groupes">Commander pour un bureau ou une fête, à partir de dix lattés</Link>
         </p>
         <p className="pied-ligne">© The Latte Society, Cotonou. Esther is cooking.</p>
       </footer>

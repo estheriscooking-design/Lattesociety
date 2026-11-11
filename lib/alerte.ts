@@ -17,7 +17,7 @@ export function texteAlerte(c: Commande, origine = process.env.SITE_URL ?? "") {
       ? "Dès que possible"
       : `Pour le ${new Date(`${c.quand.jour}T12:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })} à ${c.quand.heure.replace(":", " h ")}`;
   return [
-    `Nouvelle commande ${c.numero}`,
+    c.groupe ? `Commande de groupe ${c.numero} : ${c.groupe.societe}` : `Nouvelle commande ${c.numero}`,
     quand,
     "",
     ...c.lignes.map((l) => `${l.quantite} × ${LATTES.find((x) => x.id === l.latte)?.nom ?? l.latte} (${detailLigne(l)})`),
@@ -27,6 +27,8 @@ export function texteAlerte(c: Commande, origine = process.env.SITE_URL ?? "") {
       : `${c.nom}, ${c.telephone}`,
     ...(c.cadeau?.mot ? [`Mot : « ${c.cadeau.mot} »`] : []),
     `${c.quartier}. ${c.lieu}`,
+    ...(c.groupe?.facture ? ["Facture demandée."] : []),
+    ...(c.groupe?.note ? [`Précisions : ${c.groupe.note}`] : []),
     "",
     `Payé ${fcfa(c.total)}, dont ${fcfa(c.frais)} pour le livreur.`,
     ...(c.remise ? [`Carte de la Society : un latté offert (${fcfa(c.remise)}).`] : []),

@@ -4,8 +4,10 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID }
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
+  CAPACITE,
   LAITS,
   LATTES,
+  MINI_GROUPE,
   MAX_DESSUS,
   MAX_SIROPS,
   QUARTIERS,
@@ -13,9 +15,10 @@ import {
   SUPPLEMENTS,
   cleLigne,
   detailLigne,
-  erreurCreneau,
-  ouvertMaintenant,
+  erreurTournee,
+  joursOuverts,
   prixLigne,
+  tourneesDu,
   type Ligne,
 } from "./carte";
 import { alerter, envoyer } from "./alerte";
@@ -41,6 +44,7 @@ export type Commande = {
   paiement: { mode: "fedapay" | "demo"; transaction: string | null };
   historique?: { statut: Statut; le: string }[]; // l'heure de chaque étape, pour mesurer les délais
   avis?: { note: number; commentaire: string; le: string } | null; // laissé par le client après la livraison
+  groupe?: { societe: string; facture: boolean; note: string } | null; // commande d'un bureau ou d'un événement
   remise?: number; // le latté offert par la carte de la Society, en francs
   soucis?: { message: string; le: string }[]; // ce que le client signale depuis sa page de suivi
 };
@@ -53,7 +57,10 @@ const gobelets = (c: Commande) => c.lignes.reduce((s, l) => s + l.quantite, 0);
 
 export function carteDe(telephone: string, toutes: Commande[]) {
   const cle = cleTel(telephone);
-  const siennes = toutes.filter((c) => c.statut !== "attente" && c.statut !== "annulee" && cleTel(c.telephone) === cle);
+  // Les commandes de groupe ne comptent pas sur la carte
+  const siennes = toutes.filter(
+    (c) => c.statut !== "attente" && c.statut !== "annulee" && !c.groupe && cleTel(c.telephone) === cle,
+  );
   const offerts = siennes.filter((c) => (c.remise ?? 0) > 0).length;
   const payes = siennes.reduce((s, c) => s + gobelets(c), 0) - offerts;
   const tampons = payes - offerts * TAMPONS;
@@ -64,7 +71,7 @@ export function carteDe(telephone: string, toutes: Commande[]) {
 export const remiseCarte = (lignes: Ligne[]) => Math.min(...lignes.map((l) => prixLigne(l) / l.quantite));
 
 export async function appliquerCarte(c: Commande) {
-  if (!carteDe(c.telephone, await lister(2000)).offert) return c;
+  if (c.groupe || !carteDe(c.telephone, await lister(2000)).offert) return c;
   const remise = remiseCarte(c.lignes);
   return { ...c, remise, total: c.total - remise };
 }
@@ -94,13 +101,14 @@ const ids = (v: unknown, liste: { id: string }[]) =>
 
 // Renvoie la commande prête à enregistrer, ou le message à montrer au client.
 export function preparerCommande(corps: Record<string, unknown>): Commande | string {
+  const enGroupe = corps.groupe === true;
   const brutes = Array.isArray(corps.lignes) ? corps.lignes.slice(0, 30) : [];
   const lignes: Ligne[] = [];
   for (const b of brutes as Record<string, unknown>[]) {
     const latte = LATTES.find((l) => l.id === b?.latte);
     if (!latte) return "Un latté de votre commande n’est plus à la carte. Rechargez la page.";
     const quantite = Math.floor(Number(b.quantite));
-    if (!(quantite >= 1 && quantite <= 20)) return "La quantité d’un latté n’est pas valable.";
+    if (!(quantite >= 1 && quantite <= (enGroupe ? 100 : 20))) return "La quantité d’un latté n’est pas valable.";
     const lait = LAITS.some((o) => o.id === b.lait) ? (b.lait as string) : "classique";
     const sirops = latte.libre ? ids(b.sirops, SIROPS) : [];
     const supplements = latte.libre ? ids(b.supplements, SUPPLEMENTS) : [];
@@ -110,6 +118,15 @@ export function preparerCommande(corps: Record<string, unknown>): Commande | str
     lignes.push({ ...l, cle: cleLigne(l) });
   }
   if (lignes.length === 0) return "Votre commande est vide.";
+  let groupe: Commande["groupe"] = null;
+  if (enGroupe) {
+    if (lignes.some((l) => LATTES.find((x) => x.id === l.latte)?.libre))
+      return "Le latté à composer ne se commande pas en groupe.";
+    if (lignes.reduce((s, l) => s + l.quantite, 0) < MINI_GROUPE)
+      return `Une commande de groupe commence à ${MINI_GROUPE} lattés.`;
+    groupe = { societe: texte(corps.societe, 120), facture: corps.facture === true, note: texte(corps.note, 500) };
+    if (!groupe.societe) return "Indiquez le nom de l’entreprise ou de l’événement.";
+  }
 
   const nom = texte(corps.nom, 80);
   const telephone = texte(corps.telephone, 30);
@@ -128,18 +145,13 @@ export function preparerCommande(corps: Record<string, unknown>): Commande | str
   const lieu = texte(corps.lieu, 500);
   if (!lieu) return "Indiquez le lieu de livraison.";
 
-  let quand: Commande["quand"];
-  if (corps.quand === "vite") {
-    if (!ouvertMaintenant()) return "Esther est fermée en ce moment. Réservez un jour et une heure.";
-    quand = "vite";
-  } else {
-    const jour = texte(corps.jour, 10);
-    const heure = texte(corps.heure, 5);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(jour) || !/^\d{2}:\d{2}$/.test(heure)) return "Choisissez un jour et une heure.";
-    const refus = erreurCreneau(jour, heure);
-    if (refus) return refus;
-    quand = { jour, heure };
-  }
+  // La livraison se fait par tournée : un jour et une heure d'arrivée propres à la zone du quartier
+  const jour = texte(corps.jour, 10);
+  const heure = texte(corps.heure, 5);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(jour) || !/^\d{2}:\d{2}$/.test(heure)) return "Choisissez une tournée de livraison.";
+  const refus = erreurTournee(jour, heure, quartier.frais, enGroupe);
+  if (refus) return refus;
+  const quand: Commande["quand"] = { jour, heure };
 
   const sousTotal = lignes.reduce((s, l) => s + prixLigne(l), 0);
   const id = randomUUID();
@@ -161,8 +173,53 @@ export function preparerCommande(corps: Record<string, unknown>): Commande | str
     paiement: { mode: "demo", transaction: null },
     historique: [],
     avis: null,
+    groupe,
   };
 }
+
+// ---------- Les places dans les tournées
+// Une tournée emporte CAPACITE gobelets. Comptent les commandes payées, et celles en cours de paiement
+// depuis moins d'un quart d'heure. Les commandes de groupe ont leur propre course et ne comptent pas.
+const gobeletsPris = (toutes: Commande[], jour: string, heure: string, frais: number) =>
+  toutes
+    .filter(
+      (c) =>
+        !c.groupe &&
+        c.frais === frais &&
+        c.quand !== "vite" &&
+        c.quand.jour === jour &&
+        c.quand.heure === heure &&
+        c.statut !== "annulee" &&
+        (c.statut !== "attente" || Date.now() - new Date(c.creeLe).getTime() < 15 * 60000),
+    )
+    .reduce((s, c) => s + gobelets(c), 0);
+
+// Les tournées ouvertes pour une zone sur les sept prochains jours de livraison
+export async function tourneesOuvertes(frais: number, groupe = false) {
+  const toutes = groupe ? [] : await lister(2000);
+  return joursOuverts()
+    .map((jour) => ({
+      jour,
+      tournees: tourneesDu(jour, frais)
+        .filter((heure) => !erreurTournee(jour, heure, frais, groupe))
+        .map((heure) => ({
+          heure,
+          places: groupe ? null : Math.max(0, CAPACITE - gobeletsPris(toutes, jour, heure, frais)),
+        })),
+    }))
+    .filter((j) => j.tournees.length > 0);
+}
+
+// Dernier contrôle avant d'enregistrer : reste-t-il de la place dans la tournée choisie ?
+export async function refusTournee(c: Commande) {
+  if (c.groupe || c.quand === "vite") return null;
+  const libres = CAPACITE - gobeletsPris(await lister(2000), c.quand.jour, c.quand.heure, c.frais);
+  if (gobelets(c) <= libres) return null;
+  return libres <= 0
+    ? "Cette tournée vient de se remplir. Choisissez la suivante."
+    : `Il ne reste que ${libres} place${libres > 1 ? "s" : ""} dans cette tournée. Choisissez-en une autre, ou passez par la commande de groupe.`;
+}
+
 
 // Ce que le client voit sur sa page de suivi : ni téléphone ni adresse.
 export function vuePublique(c: Commande) {

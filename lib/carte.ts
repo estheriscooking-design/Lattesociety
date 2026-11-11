@@ -287,6 +287,73 @@ export function erreurCreneau(jour: string, heure: string): string | null {
   return null;
 }
 
+// ---------- Les tournées de livraison
+// Au lieu d'une course par commande, les commandes d'une même zone partent ensemble à heure fixe.
+// Une zone = un tarif de livraison. Plus la zone est proche d'Akpakpa, plus elle a de tournées.
+// HEURES, CAPACITÉ ET DÉLAIS SONT UNE PROPOSITION de Claude (11/2026), à régler par Esther.
+export const ZONES: Record<number, string> = {
+  500: "Akpakpa et environs",
+  1000: "Centre de Cotonou",
+  1500: "Ouest de Cotonou",
+  2000: "Abomey-Calavi",
+};
+// Heure d'arrivée prévue chez le client, par zone
+const TOURNEES_LUNDI: Record<number, string[]> = {
+  500: ["11:00", "12:30", "14:00", "15:30", "17:00", "18:30"],
+  1000: ["11:30", "13:30", "15:30", "17:30"],
+  1500: ["12:00", "15:00", "18:00"],
+  2000: ["12:00", "15:00", "18:00"],
+};
+const TOURNEES_SEMAINE: Record<number, string[]> = {
+  500: ["16:15", "17:15", "18:15", "19:15"],
+  1000: ["16:30", "18:00", "19:15"],
+  1500: ["17:00", "18:45"],
+  2000: ["17:00", "18:45"],
+};
+// Minutes entre la dernière commande acceptée et l'arrivée : préparation + trajet
+export const AVANCE: Record<number, number> = { 500: 45, 1000: 45, 1500: 60, 2000: 60 };
+// Gobelets qu'un livreur emporte en une tournée. Les commandes de groupe ont leur propre course.
+export const CAPACITE = 12;
+// Commandes de groupe : au moins dix gobelets, passées la veille au plus tard
+export const MINI_GROUPE = 10;
+
+export function tourneesDu(jour: string, frais: number): string[] {
+  if (!jour) return [];
+  const j = new Date(`${jour}T12:00`).getDay();
+  if (j === 0) return [];
+  return (j === 1 ? TOURNEES_LUNDI : TOURNEES_SEMAINE)[frais] ?? [];
+}
+
+// Les sept prochains jours où Esther livre, aujourd'hui compris
+export function joursOuverts(n = 7): string[] {
+  const jours: string[] = [];
+  const d = new Date(`${maintenantCotonou().date}T12:00:00Z`);
+  while (jours.length < n) {
+    if (d.getUTCDay() !== 0) jours.push(d.toISOString().slice(0, 10));
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return jours;
+}
+
+// La tournée existe-t-elle, et est-il encore temps de s'y inscrire ?
+export function erreurTournee(jour: string, heure: string, frais: number, groupe = false): string | null {
+  if (!tourneesDu(jour, frais).includes(heure)) return "Choisissez une tournée de livraison.";
+  const m = maintenantCotonou();
+  if (jour < m.date) return "Ce jour est déjà passé.";
+  if (groupe)
+    return jour === m.date ? "Une commande de groupe se passe la veille au plus tard." : null;
+  if (jour === m.date && enMinutes(heure) - (AVANCE[frais] ?? 60) < m.minutes)
+    return "Cette tournée est déjà en préparation. Choisissez la suivante.";
+  return null;
+}
+
+export const heureEnClair = (h: string) => h.replace(":00", " h").replace(":", " h ");
+export const jourEnClair = (jour: string) => {
+  const m = maintenantCotonou().date;
+  const texte = new Date(`${jour}T12:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+  return jour === m ? `Aujourd’hui, ${texte}` : texte.charAt(0).toUpperCase() + texte.slice(1);
+};
+
 export type Ligne = {
   cle: string;
   latte: string;

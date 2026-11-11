@@ -2,6 +2,7 @@
 
 // L'écran d'Esther : les commandes payées arrivent ici, elle les fait avancer d'un bouton.
 import { useCallback, useEffect, useRef, useState } from "react";
+import FeuillesDeRoute from "@/components/FeuillesDeRoute";
 import TableauDeBord from "@/components/TableauDeBord";
 import { LATTES, detailLigne, fcfa, type Ligne } from "@/lib/carte";
 
@@ -16,6 +17,7 @@ type Commande = {
   nom: string;
   telephone: string;
   cadeau: { nom: string; telephone: string; mot: string } | null;
+  groupe?: { societe: string; facture: boolean; note: string } | null;
   quartier: string;
   lieu: string;
   quand: "vite" | { jour: string; heure: string };
@@ -86,7 +88,7 @@ export default function Esther() {
   );
   const [commandes, setCommandes] = useState<Commande[]>([]);
   const [demo, setDemo] = useState(false);
-  const [onglet, setOnglet] = useState<"commandes" | "tableau">("commandes");
+  const [onglet, setOnglet] = useState<"commandes" | "tournees" | "tableau">("commandes");
   const [code, setCode] = useState("");
   const [erreur, setErreur] = useState("");
   const connues = useRef<Set<string> | null>(null);
@@ -198,6 +200,14 @@ export default function Esther() {
           </button>
           <button
             role="tab"
+            aria-selected={onglet === "tournees"}
+            className={onglet === "tournees" ? "lait lait-choisi" : "lait"}
+            onClick={() => setOnglet("tournees")}
+          >
+            Les tournées
+          </button>
+          <button
+            role="tab"
             aria-selected={onglet === "tableau"}
             className={onglet === "tableau" ? "lait lait-choisi" : "lait"}
             onClick={() => setOnglet("tableau")}
@@ -206,7 +216,11 @@ export default function Esther() {
           </button>
         </div>
         <h1>
-          {onglet === "commandes" ? "Les commandes" : "Le tableau de bord"}
+          {onglet === "commandes"
+            ? "Les commandes"
+            : onglet === "tournees"
+              ? "Les tournées"
+              : "Le tableau de bord"}
         </h1>
         <p>
           La page se met à jour toutes les dix secondes et sonne quand une
@@ -223,6 +237,9 @@ export default function Esther() {
         )}
       </header>
       {onglet === "tableau" && <TableauDeBord />}
+      {onglet === "tournees" && (
+        <FeuillesDeRoute commandes={commandes} avancer={avancer} />
+      )}
       <div className="esther-colonnes" hidden={onglet !== "commandes"}>
         {COLONNES.map((col) => {
           const liste = commandes.filter(
@@ -273,6 +290,13 @@ export default function Esther() {
                     <p>
                       <strong>{c.nom}</strong>,{" "}
                       <a href={`tel:${c.telephone}`}>{c.telephone}</a>
+                    </p>
+                  )}
+                  {c.groupe && (
+                    <p>
+                      Commande de groupe : <strong>{c.groupe.societe}</strong>.
+                      {c.groupe.facture ? " Facture demandée." : ""}
+                      {c.groupe.note ? ` ${c.groupe.note}` : ""}
                     </p>
                   )}
                   <p>

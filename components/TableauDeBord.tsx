@@ -153,6 +153,11 @@ export default function TableauDeBord() {
           note="payé par les clients, pas un revenu"
         />
         <Chiffre
+          titre="Commandes de groupe"
+          valeur={String(d.groupes.n)}
+          note={`${fcfa(d.groupes.ca)} de lattés`}
+        />
+        <Chiffre
           titre="Visites du site"
           valeur={String(d.visites.visites)}
           note={ecart(d.visites.visites, d.visites.avant)}

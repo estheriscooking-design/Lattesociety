@@ -1,5 +1,5 @@
 // Le client valide sa commande : on la contrôle, on l'enregistre, on renvoie l'adresse où payer.
-import { appliquerCarte, enregistrer, preparerCommande } from "@/lib/commandes";
+import { appliquerCarte, enregistrer, preparerCommande, refusTournee } from "@/lib/commandes";
 import { creerPaiement, fedapayActif } from "@/lib/fedapay";
 
 export async function POST(req: Request) {
@@ -7,6 +7,8 @@ export async function POST(req: Request) {
   if (!corps || typeof corps !== "object") return Response.json({ erreur: "Commande illisible." }, { status: 400 });
   const prete = preparerCommande(corps as Record<string, unknown>);
   if (typeof prete === "string") return Response.json({ erreur: prete }, { status: 400 });
+  const plein = await refusTournee(prete);
+  if (plein) return Response.json({ erreur: plein }, { status: 409 });
   const commande = await appliquerCarte(prete);
 
   const origine = new URL(req.url).origin;
