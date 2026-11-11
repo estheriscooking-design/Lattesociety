@@ -267,7 +267,7 @@ export default function Boutique() {
 
           <section className="commander" id="commander">
             <div className="commander-tete">
-              <h2>Composez votre commande</h2>
+              <h2>Choisissez vos lattés</h2>
               <p>
                 Ajoutez vos lattés avec le bouton +. Tous sont servis en gobelet de {CONTENANCE}. Le lait, classique ou végétal, se choisit ensuite dans votre
                 commande.
