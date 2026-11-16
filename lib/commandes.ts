@@ -299,7 +299,9 @@ async function rest(chemin: string, init: RequestInit = {}) {
     cache: "no-store",
   });
   if (!r.ok) throw new Error(`Supabase ${r.status} : ${await r.text()}`);
-  return r.status === 204 ? null : r.json();
+  // Une création ou une modification réussie répond sans contenu (201 ou 204) : rien à lire
+  const texte = await r.text();
+  return texte ? JSON.parse(texte) : null;
 }
 
 let file: Promise<unknown> = Promise.resolve(); // une écriture à la fois dans le fichier
