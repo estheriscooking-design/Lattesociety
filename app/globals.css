@@ -730,6 +730,11 @@ textarea {
   font-size: 15px;
 }
 
+.pied-reseaux {
+  display: flex;
+  gap: 24px;
+}
+
 /* Feuilles : composer un latté, panier, livraison */
 
 .feuille {

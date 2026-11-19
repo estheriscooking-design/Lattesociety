@@ -28,10 +28,12 @@ const provenance = () => {
 export default function Commande({
   panier,
   setPanier,
+  cadeau = false,
   onFermer,
 }: {
   panier: Ligne[];
   setPanier: React.Dispatch<React.SetStateAction<Ligne[]>>;
+  cadeau?: boolean; // le client vient de la section « offrir »
   onFermer: () => void;
 }) {
   const boite = useRef<HTMLDialogElement>(null);
@@ -48,7 +50,7 @@ export default function Commande({
     return {
       nom: garde.nom,
       telephone: garde.telephone,
-      cadeau: false,
+      cadeau,
       pourNom: "",
       pourTelephone: "",
       mot: "",

@@ -2,13 +2,12 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useId, useRef, useState } from "react";
 import Gobelet from "./Gobelet";
 import Commande from "./Commande";
 import {
   LAITS,
   CONTENANCE,
-  HORAIRES_TEXTE,
   LATTES,
   LIVRAISON,
   MAX_DESSUS,
@@ -32,11 +31,17 @@ const ETAPES = [
   { titre: "La paille et le sceau", texte: "Esther plante la paille, colle son sceau et confie le gobelet au livreur." },
 ];
 const PHRASE = "Chaque latté est préparé à la commande, par Esther, chez elle, puis livré glacé à votre porte.".split(" ");
+const PHOTOS: [number, string][] = [
+  [2, "Trois lattés glacés alignés sur la table d’Esther : chocolat, matcha et ube."],
+  [4, "Les trois mêmes gobelets vus de près, avec leurs glaçons et leurs pailles noires."],
+  [3, "Un latté au chocolat au premier plan, un matcha juste derrière."],
+];
 const NOMBRES = ["Zéro", "Un", "Deux", "Trois", "Quatre", "Cinq", "Six", "Sept", "Huit", "Neuf", "Dix", "Onze", "Douze"];
 
 export default function Boutique() {
   const [latte, setLatte] = useState(1);
   const [etape, setEtape] = useState(-1);
+  const [offre, setOffre] = useState(false); // venu par « offrir » : la case cadeau sera déjà cochée
   const phrase = useRef<HTMLParagraphElement>(null);
   const [panier, setPanier] = useState<Ligne[]>([]);
   const [compose, setCompose] = useState(false);
@@ -193,7 +198,7 @@ export default function Boutique() {
               </h1>
               <p>
                 {NOMBRES[LATTES.length - 1]} lattés signature, ou le vôtre à composer. Faits à la commande et livrés à Cotonou et Calavi, du
-                lundi au samedi. Gobelet de {CONTENANCE}, à partir de {fcfa(Math.min(...LATTES.map((l) => l.prix)))}.
+                lundi au samedi. Gobelet de {CONTENANCE}, à partir de {fcfa(Math.min(...LATTES.map((l) => l.prix)))} CFA.
               </p>
               <div className="heros-actions">
                 <a className="bouton bouton-grand" href="#commander">
@@ -268,7 +273,7 @@ export default function Boutique() {
               <div className="sequence-gobelet" data-gobelet data-sequence="carte" style={{ color: actif.teinte }}>
                 <Couronne />
               </div>
-              <ol className="sequence-liste" aria-label="La carte">
+              <ul className="sequence-liste" aria-label="La carte">
                 {LATTES.map((l, i) => (
                   <li key={l.id}>
                     <button
@@ -280,7 +285,7 @@ export default function Boutique() {
                     />
                   </li>
                 ))}
-              </ol>
+              </ul>
               <p className="sequence-geste">Glissez vers la gauche pour voir le suivant.</p>
             </div>
           </section>
@@ -289,7 +294,7 @@ export default function Boutique() {
             <div className="commander-tete">
               <h2>Choisissez vos lattés</h2>
               <p>
-                Ajoutez vos lattés avec le bouton +. Tous sont servis en gobelet de {CONTENANCE}. Le lait, classique ou végétal, se choisit ensuite dans votre
+                Ajoutez vos lattés avec le bouton +. Tous sont servis en gobelet de {CONTENANCE}. Le lait, classique ou végétal (+{fcfa(LAITS.find((l) => l.prix)?.prix ?? 0)}), se choisit ensuite dans votre
                 commande.
               </p>
               <p>
@@ -297,6 +302,7 @@ export default function Boutique() {
                 <Link className="lien" href="/groupes">
                   Passez par la commande de groupe
                 </Link>
+                , la veille au plus tard.
               </p>
             </div>
             <ul className="tuiles">
@@ -323,8 +329,12 @@ export default function Boutique() {
           <div className="recette" style={{ background: LATTES[1].fond }}>
             <section className="phrase-bloc">
               <p className="phrase" ref={phrase}>
+                {/* L'espace reste entre les mots, hors des <span> : la phrase se lit et se copie normalement */}
                 {PHRASE.map((mot, i) => (
-                  <span key={i}>{mot} </span>
+                  <Fragment key={i}>
+                    {i > 0 && " "}
+                    <span>{mot}</span>
+                  </Fragment>
                 ))}
               </p>
             </section>
@@ -358,11 +368,11 @@ export default function Boutique() {
           <section className="vrai">
             <h2>Ce que vous recevez, photographié chez Esther.</h2>
             <div className="vrai-photos">
-              {[2, 4, 3].map((n) => (
+              {PHOTOS.map(([n, alt]) => (
                 <Image
                   key={n}
                   src={`/photos/esther-${n}.jpg`}
-                  alt="Lattés glacés préparés par Esther, dans leurs gobelets"
+                  alt={alt}
                   width={619}
                   height={1100}
                   sizes="(max-width: 700px) 70vw, 30vw"
@@ -378,7 +388,7 @@ export default function Boutique() {
                 Au moment de commander, indiquez que c’est un cadeau. Vous donnez le nom et le numéro de la personne,
                 l’endroit où la trouver, et le mot qu’Esther glissera avec le gobelet.
               </p>
-              <a className="bouton bouton-grand" href="#commander">
+              <a className="bouton bouton-grand" href="#commander" onClick={() => setOffre(true)}>
                 Choisir le latté à offrir
               </a>
             </div>
@@ -402,8 +412,9 @@ export default function Boutique() {
               <div>
                 <dt>Quand</dt>
                 <dd>
-                  Esther prépare {HORAIRES_TEXTE}. Comptez 30 minutes entre votre commande et la livraison,
-                  ou réservez à l’avance pour une heure précise.
+                  Esther livre par tournées : le lundi entre 11 h et 18 h 30, du mardi au samedi entre 16 h 15 et
+                  19 h 15. Vous choisissez l’heure d’arrivée en commandant, pour le jour même ou à l’avance. Commandez au
+                  moins 45 minutes avant, une heure pour les quartiers éloignés.
                 </dd>
               </div>
               <div>
@@ -412,6 +423,10 @@ export default function Boutique() {
                   La livraison est à votre charge : de {fcfa(LIVRAISON.mini)} à {fcfa(LIVRAISON.maxi)} selon votre
                   quartier. Le montant exact s’affiche quand vous choisissez le vôtre.
                 </dd>
+              </div>
+              <div>
+                <dt>Paiement</dt>
+                <dd>En ligne, par Mobile Money (MTN ou Moov), au moment de commander.</dd>
               </div>
             </dl>
           </section>
@@ -436,6 +451,14 @@ export default function Boutique() {
         <Link className="lien pied-lien" href="/groupes">
           Commander pour un bureau ou une fête
         </Link>
+        <p className="pied-reseaux">
+          <a className="lien pied-lien" href="https://www.instagram.com/esther_is_cooking/" rel="noopener">
+            Instagram
+          </a>{" "}
+          <a className="lien pied-lien" href="https://www.tiktok.com/@esther__tito" rel="noopener">
+            TikTok
+          </a>
+        </p>
         <p className="pied-ligne">© The Latte Society, Cotonou. Esther is cooking.</p>
       </footer>
 
@@ -462,7 +485,7 @@ export default function Boutique() {
           }}
         />
       )}
-      {ouvert && <Commande panier={panier} setPanier={setPanier} onFermer={() => setOuvert(false)} />}
+      {ouvert && <Commande panier={panier} setPanier={setPanier} cadeau={offre} onFermer={() => setOuvert(false)} />}
     </div>
   );
 }
