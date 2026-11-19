@@ -589,6 +589,32 @@ textarea {
   color: var(--creme);
 }
 
+/* La phrase qui s'allume mot à mot, puis le gobelet qui se prépare */
+
+.phrase-bloc {
+  padding: 96px 16px 40px;
+}
+
+.phrase {
+  max-width: 15em;
+  font-family: var(--police-titre), system-ui, sans-serif;
+  font-variation-settings: var(--titre-reglage);
+  font-size: clamp(38px, 10vw, 92px);
+  font-weight: var(--titre-graisse);
+  line-height: 0.95;
+  text-transform: var(--titre-casse);
+}
+
+/* Sans script, tous les mots restent lisibles : le blanc n'arrive qu'une fois l'animation prête */
+.phrase-vive span {
+  color: var(--blanc);
+  transition: color 0.3s ease;
+}
+
+.phrase-vive .mot-allume {
+  color: var(--brun);
+}
+
 /* Les vraies photos */
 
 .vrai {
@@ -1267,6 +1293,10 @@ textarea {
 
   .commander {
     padding: 120px 40px;
+  }
+
+  .phrase-bloc {
+    padding: 140px 40px 40px;
   }
 
   .tuiles {

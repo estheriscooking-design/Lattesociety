@@ -2,7 +2,8 @@
 
 // Le gobelet : un seul objet 3D, fixé à l'écran, qui suit les emplacements
 // marqués `data-gobelet` dans la page. Dans la séquence, il tourne sur lui-même
-// et change de latté quand l'autocollant passe derrière.
+// et change de latté quand l'autocollant passe derrière. Dans un emplacement
+// `data-prepare`, il se prépare au défilement : glaçons, lait, café et sirop, paille et sceau.
 
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
@@ -12,22 +13,27 @@ import { LATTES } from "@/lib/carte";
 
 const HAUTEUR = 2.4;
 const NIVEAU = 2.06; // hauteur du liquide
+const LAIT = "#F8F0E2"; // le lait seul, avant le café et le sirop
+export const NB_ETAPES = 4; // glaçons, lait, café et sirop, paille et sceau
 const rayon = (y: number) => (y <= 0.22 ? 0.8 : 0.8 + ((y - 0.22) / (HAUTEUR - 0.22)) * 0.2);
 const lisse = (t: number) => {
   const x = Math.min(1, Math.max(0, t));
   return x * x * (3 - 2 * x);
 };
 // Hasard stable : le gobelet est le même à chaque visite
+const entre = (p: number, a: number, b: number) => lisse((p - a) / (b - a));
 const hasard = (n: number) => {
   const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
   return x - Math.floor(x);
 };
 
-export default function Gobelet({ onLatte }: { onLatte: (i: number) => void }) {
+export default function Gobelet({ onLatte, onEtape }: { onLatte: (i: number) => void; onEtape?: (i: number) => void }) {
   const toile = useRef<HTMLCanvasElement>(null);
   const rappel = useRef(onLatte);
+  const rappelEtape = useRef(onEtape);
   useEffect(() => {
     rappel.current = onLatte;
+    rappelEtape.current = onEtape;
   });
 
   useEffect(() => {
@@ -37,6 +43,7 @@ export default function Gobelet({ onLatte }: { onLatte: (i: number) => void }) {
 
     const rendu = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
     rendu.toneMapping = THREE.NeutralToneMapping;
+    rendu.localClippingEnabled = true; // le liquide est coupé à son niveau pendant la préparation
     const scene = new THREE.Scene();
     const pmrem = new THREE.PMREMGenerator(rendu);
     scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
@@ -94,7 +101,11 @@ export default function Gobelet({ onLatte }: { onLatte: (i: number) => void }) {
         melange[i] = lisse((y / NIVEAU - 0.16 + marbre * 0.15) / 0.5);
       }
     }
-    const liquide = new THREE.Mesh(geoLiquide, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4 }));
+    const coupe = new THREE.Plane();
+    const liquide = new THREE.Mesh(
+      geoLiquide,
+      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, clippingPlanes: [coupe] }),
+    );
     corps.add(liquide);
 
     const matSurface = new THREE.MeshStandardMaterial({ roughness: 0.3 });
@@ -121,12 +132,14 @@ export default function Gobelet({ onLatte }: { onLatte: (i: number) => void }) {
       [-0.12, 0.2, 0.08, 0.8],
       [0.3, -0.04, 0.6, 0.75],
     ];
-    places.forEach(([x, y, z, s], i) => {
+    const glacons = places.map(([x, y, z, s], i) => {
       const g = new THREE.Mesh(geoGlace, matGlace);
       g.position.set(x, NIVEAU + y, z);
       g.rotation.set(i * 0.9, i * 1.7, i * 0.5);
       g.scale.setScalar(s);
       corps.add(g);
+      // Au fond du gobelet vide, les six premiers se posent, les deux derniers par-dessus
+      return { g, flotte: y, pose: i < 6 ? 0.26 : 0.66 };
     });
 
     // La paille
@@ -149,9 +162,7 @@ export default function Gobelet({ onLatte }: { onLatte: (i: number) => void }) {
       new THREE.Vector2(1.035, HAUTEUR),
       new THREE.Vector2(1.035, HAUTEUR + 0.05),
     ];
-    const paroi = new THREE.Mesh(
-      new THREE.LatheGeometry(profil, 96),
-      new THREE.MeshPhysicalMaterial({
+    const matParoi = new THREE.MeshPhysicalMaterial({
         color: "#ffffff",
         transparent: true,
         opacity: 0.18, // slop-ok : plastique transparent du gobelet 3D
@@ -159,25 +170,22 @@ export default function Gobelet({ onLatte }: { onLatte: (i: number) => void }) {
         clearcoat: 1,
         side: THREE.DoubleSide,
         depthWrite: false,
-      }),
-    );
+    });
+    const paroi = new THREE.Mesh(new THREE.LatheGeometry(profil, 96), matParoi);
     paroi.renderOrder = 2;
     corps.add(paroi);
 
     // La buée : des gouttes sur la paroi, parce que c'est glacé
     const NB_GOUTTES = 130;
-    const gouttes = new THREE.InstancedMesh(
-      new THREE.SphereGeometry(1, 10, 8),
-      new THREE.MeshPhysicalMaterial({
-        color: "#ffffff",
-        roughness: 0,
-        clearcoat: 1,
-        transparent: true,
-        opacity: 0.42, // slop-ok : gouttes d'eau du gobelet 3D
-        depthWrite: false,
-      }),
-      NB_GOUTTES,
-    );
+    const matGouttes = new THREE.MeshPhysicalMaterial({
+      color: "#ffffff",
+      roughness: 0,
+      clearcoat: 1,
+      transparent: true,
+      opacity: 0.42, // slop-ok : gouttes d'eau du gobelet 3D
+      depthWrite: false,
+    });
+    const gouttes = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 10, 8), matGouttes, NB_GOUTTES);
     const pose = new THREE.Object3D();
     for (let i = 0; i < NB_GOUTTES; i++) {
       const y = 0.35 + hasard(i) * 1.6;
@@ -202,9 +210,10 @@ export default function Gobelet({ onLatte }: { onLatte: (i: number) => void }) {
     const texture = new THREE.TextureLoader().load("/logo/autocollant-creme.png");
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = 8;
+    const matAutocollant = new THREE.MeshStandardMaterial({ map: texture, transparent: true, roughness: 0.7, depthWrite: false });
     const autocollant = new THREE.Mesh(
       new THREE.CylinderGeometry(rayon(y1) + 0.012, rayon(y0) + 0.012, y1 - y0, 40, 1, true, -arc / 2, arc),
-      new THREE.MeshStandardMaterial({ map: texture, transparent: true, roughness: 0.7, depthWrite: false }),
+      matAutocollant,
     );
     autocollant.position.y = (y0 + y1) / 2;
     autocollant.renderOrder = 4;
@@ -217,6 +226,8 @@ export default function Gobelet({ onLatte }: { onLatte: (i: number) => void }) {
     const bas = new THREE.Color(LATTES[1].bas);
     const tmp = new THREE.Color();
     const blanc = new THREE.Color("#ffffff");
+    const lait = new THREE.Color(LAIT);
+    const versLeBas = new THREE.Vector3(0, -1, 0);
     const peindre = () => {
       const col = geoLiquide.attributes.color as THREE.BufferAttribute;
       for (let i = 0; i < nb; i++) {
@@ -244,7 +255,7 @@ export default function Gobelet({ onLatte }: { onLatte: (i: number) => void }) {
     window.addEventListener("resize", tailler);
 
     let emplacements = Array.from(document.querySelectorAll<HTMLElement>("[data-gobelet]"));
-    const etat = { x: 0, y: 0, h: 0, rot: 0, penche: 0, pret: false, latte: -1 };
+    const etat = { x: 0, y: 0, h: 0, rot: 0, penche: 0, pret: false, latte: -1, fait: 1, etape: -1 };
     let avant = performance.now();
     let defilement = window.scrollY;
     let image = 0;
@@ -278,6 +289,8 @@ export default function Gobelet({ onLatte }: { onLatte: (i: number) => void }) {
       let ch = 0;
       let rot = etat.rot;
       let latte = etat.latte < 0 ? 1 : etat.latte;
+      let fait = 1; // part de la préparation accomplie : 1 partout, sauf dans la section qui la montre
+      let etape = -1;
       if (choix && rect) {
         cx = rect.left + rect.width / 2;
         cy = rect.top + rect.height / 2;
@@ -296,6 +309,14 @@ export default function Gobelet({ onLatte }: { onLatte: (i: number) => void }) {
           latte = Number(choix.dataset.latte ?? 1);
           const base = Math.round(etat.rot / (Math.PI * 2)) * Math.PI * 2;
           rot = base + (calme ? 0 : Math.sin(t / 1400) * 0.22 - 0.18);
+          const section = choix.dataset.prepare && document.getElementById(choix.dataset.prepare);
+          if (section) {
+            const r = section.getBoundingClientRect();
+            fait = Math.min(1, Math.max(0, -r.top / Math.max(1, r.height - hv)));
+            etape = Math.min(NB_ETAPES - 1, Math.floor(fait * NB_ETAPES));
+            // Il se tourne peu à peu vers nous : le sceau arrive de face à la fin
+            if (!calme) rot -= (1 - fait) * 1.1;
+          }
         }
       }
 
@@ -306,6 +327,11 @@ export default function Gobelet({ onLatte }: { onLatte: (i: number) => void }) {
         etat.h = calme ? ch : ch * 0.5;
         etat.rot = calme ? rot : rot - Math.PI * 2;
         etat.pret = true;
+      }
+      // Caché, il réapparaît à sa nouvelle place au lieu de traverser l'écran pour la rejoindre
+      if (etat.h < 4) {
+        etat.x = cx;
+        etat.y = cy;
       }
       const k = 1 - Math.exp(-dt * 6);
       etat.x += (cx - etat.x) * k;
@@ -323,8 +349,34 @@ export default function Gobelet({ onLatte }: { onLatte: (i: number) => void }) {
         etat.latte = latte;
         rappel.current(latte);
       }
-      cibleHaut.set(LATTES[latte].haut);
-      cibleBas.set(LATTES[latte].bas);
+      if (etape !== etat.etape) {
+        etat.etape = etape;
+        rappelEtape.current?.(etape);
+      }
+
+      // La préparation, en quatre temps égaux
+      etat.fait += (fait - etat.fait) * (1 - Math.exp(-dt * 7));
+      const f = etat.fait;
+      const verse = entre(f, 0.27, 0.48); // le lait
+      const colore = entre(f, 0.52, 0.73); // le café et le sirop
+      const niveau = NIVEAU * (0.66 * verse + 0.34 * colore);
+      liquide.visible = surface.visible = niveau > 0.05;
+      surface.position.y = niveau;
+      surface.scale.setScalar(rayon(niveau) / rayon(NIVEAU));
+      glacons.forEach(({ g, flotte, pose }, i) => {
+        const chute = Math.min(1, Math.max(0, (f / 0.22 - i * 0.08) / 0.44));
+        g.visible = chute > 0;
+        g.position.y = Math.max(HAUTEUR + 1.4 + (pose - HAUTEUR - 1.4) * chute * chute, niveau + flotte);
+      });
+      const plante = entre(f, 0.77, 0.88);
+      paille.visible = plante > 0;
+      paille.position.y = 1.72 + (1 - plante) * 3.4;
+      matAutocollant.opacity = entre(f, 0.86, 0.97);
+      matGouttes.opacity = 0.42 * entre(f, 0.3, 0.75); // slop-ok : la buée vient avec le froid
+      matParoi.opacity = 0.18 + 0.14 * (1 - verse); // slop-ok : le gobelet vide reste lisible sur le fond
+
+      cibleHaut.copy(lait).lerp(tmp.set(LATTES[latte].haut), colore);
+      cibleBas.copy(lait).lerp(tmp.set(LATTES[latte].bas), colore);
       if (Math.abs(haut.r - cibleHaut.r) + Math.abs(haut.g - cibleHaut.g) + Math.abs(bas.b - cibleBas.b) + Math.abs(bas.r - cibleBas.r) > 0.002) {
         haut.lerp(cibleHaut, 1 - Math.exp(-dt * 9));
         bas.lerp(cibleBas, 1 - Math.exp(-dt * 9));
@@ -336,6 +388,8 @@ export default function Gobelet({ onLatte }: { onLatte: (i: number) => void }) {
       gobelet.position.set((etat.x - lv / 2) * parPixel, -(etat.y - hv / 2) * parPixel, 0);
       gobelet.scale.setScalar((etat.h * parPixel) / 3.3);
       gobelet.rotation.set(0.16 + etat.penche * 0.5, etat.rot, (calme ? 0 : Math.sin(t / 1900) * 0.03 - 0.05) + etat.penche);
+      gobelet.updateMatrixWorld();
+      coupe.set(versLeBas, niveau).applyMatrix4(corps.matrixWorld);
       rendu.render(scene, camera);
     };
     boucle = requestAnimationFrame(tour);

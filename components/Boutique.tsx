@@ -24,10 +24,20 @@ import {
 } from "@/lib/carte";
 
 const CLE = "latte-society-panier-2";
+// La préparation montrée par le gobelet : l'ordre des étapes reste à confirmer par Esther
+const ETAPES = [
+  { titre: "D’abord, les glaçons", texte: "Beaucoup de glaçons, pour que le latté reste froid jusqu’à chez vous." },
+  { titre: "Ensuite, le lait", texte: "Du lait bien froid, classique ou végétal. C’est vous qui choisissez." },
+  { titre: "Le café et le sirop", texte: "Le café et le sirop de votre latté rejoignent le lait. Ici, le caramel." },
+  { titre: "La paille et le sceau", texte: "Esther plante la paille, colle son sceau et confie le gobelet au livreur." },
+];
+const PHRASE = "Chaque latté est préparé à la commande, par Esther, chez elle, puis livré glacé à votre porte.".split(" ");
 const NOMBRES = ["Zéro", "Un", "Deux", "Trois", "Quatre", "Cinq", "Six", "Sept", "Huit", "Neuf", "Dix", "Onze", "Douze"];
 
 export default function Boutique() {
   const [latte, setLatte] = useState(1);
+  const [etape, setEtape] = useState(-1);
+  const phrase = useRef<HTMLParagraphElement>(null);
   const [panier, setPanier] = useState<Ligne[]>([]);
   const [compose, setCompose] = useState(false);
   const [ouvert, setOuvert] = useState(false);
@@ -91,9 +101,19 @@ export default function Boutique() {
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     let prevu = 0;
+    phrase.current?.classList.add("phrase-vive");
     const tourner = () => {
       prevu = 0;
       document.documentElement.style.setProperty("--tour", `${(window.scrollY * 0.06).toFixed(1)}deg`);
+      // La phrase s'allume mot à mot pendant qu'elle traverse l'écran
+      const p = phrase.current;
+      if (!p) return;
+      const r = p.getBoundingClientRect();
+      const hv = window.innerHeight;
+      if (r.bottom < -hv || r.top > hv * 2) return;
+      const part = (hv * 0.82 - r.top) / (hv * 0.45 + r.height);
+      const allumes = Math.ceil(Math.min(1, Math.max(0, part)) * p.children.length);
+      for (let i = 0; i < p.children.length; i++) p.children[i].classList.toggle("mot-allume", i < allumes);
     };
     const defile = () => {
       if (!prevu) prevu = requestAnimationFrame(tourner);
@@ -145,7 +165,7 @@ export default function Boutique() {
 
   return (
     <div className="page" style={{ "--fond": actif.fond } as React.CSSProperties}>
-      <Gobelet onLatte={setLatte} />
+      <Gobelet onLatte={setLatte} onEtape={setEtape} />
 
       <div className="corps">
         <header className="barre">
@@ -299,6 +319,41 @@ export default function Boutique() {
               ))}
             </ul>
           </section>
+
+          <div className="recette" style={{ background: LATTES[1].fond }}>
+            <section className="phrase-bloc">
+              <p className="phrase" ref={phrase}>
+                {PHRASE.map((mot, i) => (
+                  <span key={i}>{mot} </span>
+                ))}
+              </p>
+            </section>
+            <section className="sequence" id="preparation" style={{ height: `${ETAPES.length * 70}vh` }}>
+              <div className="sequence-fixe">
+                <div className="sequence-textes">
+                  {ETAPES.map((e, i) => {
+                    const montre = i === Math.max(0, etape);
+                    return (
+                      <article key={e.titre} className={montre ? "fiche fiche-active" : "fiche"} aria-hidden={!montre}>
+                        <h2>{e.titre}</h2>
+                        <p>{e.texte}</p>
+                        {i === ETAPES.length - 1 && (
+                          <div className="fiche-achat">
+                            <a className="bouton bouton-grand" href="#commander" tabIndex={montre ? 0 : -1}>
+                              Commander le vôtre
+                            </a>
+                          </div>
+                        )}
+                      </article>
+                    );
+                  })}
+                </div>
+                <div className="sequence-gobelet" data-gobelet data-latte="1" data-prepare="preparation" style={{ color: "var(--orange)" }}>
+                  <Couronne />
+                </div>
+              </div>
+            </section>
+          </div>
 
           <section className="vrai">
             <h2>Ce que vous recevez, photographié chez Esther.</h2>
